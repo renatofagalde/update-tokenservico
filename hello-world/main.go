@@ -14,11 +14,11 @@ func handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 	if sourceIP == "" {
 		greeting = "Hello, world!\n"
 	} else {
-		greeting = fmt.Sprintf("Hello, %s! 😊\n", sourceIP)
+		greeting = fmt.Sprintf("Hello, %s! \n", sourceIP)
 	}
 
 	return events.APIGatewayProxyResponse{
-		Body:       greeting,
+		Body:       fmt.Sprintf("%s%s", greeting, " 😊"),
 		StatusCode: 200,
 	}, nil
 }
