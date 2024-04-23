@@ -22,7 +22,6 @@ Resources:
     Metadata:
       BuildMethod: go1.x
     Properties:
-      FunctionName: hello-world
       CodeUri: hello-world/
       Handler: bootstrap
       Runtime: provided.al2023
