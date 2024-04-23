@@ -64,7 +64,7 @@ AWS Lambda Golang runtime requires a flat folder with the executable generated o
         Type: AWS::Serverless::Function
         Properties:
             CodeUri: hello_world/
-            ...
+            etc
 ```
 
 To deploy your application for the first time, run the following in your shell:
