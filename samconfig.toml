@@ -21,8 +21,8 @@ s3_prefix = "golang-app"
 region = "us-east-1"
 image_repositories = []
 
-[default.package.parameters]
-resolve_s3 = false
+#[default.package.parameters]
+#resolve_s3 = false
 
 [default.sync.parameters]
 watch = true
