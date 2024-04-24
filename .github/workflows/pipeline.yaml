@@ -33,6 +33,17 @@ env:
   PROD_REGION: us-east-1
 
 jobs:
+  log-events:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Print Event Information
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          echo "GitHub Event Name: $EVENT_NAME"
+          echo "Pull Request Base Ref: $PR_BASE_REF"
   test:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -110,6 +121,7 @@ jobs:
             --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
+
   deploy-testing:
     if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop'
     needs: [ build-and-package ]
