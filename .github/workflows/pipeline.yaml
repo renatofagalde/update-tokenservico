@@ -61,6 +61,14 @@ jobs:
           role-duration-seconds: 3600
           role-skip-session-tagging: true
 
+      - name: Name of stack to delete - new
+        shell: bash
+        run: echo ${GITHUB_REF##*/} | tr -cd '[a-zA-Z0-9-]'
+
+      - name: Name of stack to delete - old
+        shell: bash
+        run: echo ${FEATURE_BRANCH_NAME##*/} | tr -cd '[a-zA-Z0-9-]'
+
       - name: Delete feature branch stack
         env:
           FEATURE_BRANCH_NAME: ${{ github.event.ref }}
