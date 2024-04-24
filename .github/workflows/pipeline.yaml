@@ -111,7 +111,7 @@ jobs:
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
   deploy-testing:
-    if: github.ref == 'refs/heads/develop'
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop'
     needs: [ build-and-package ]
     runs-on: ubuntu-latest
     steps:
@@ -145,7 +145,7 @@ jobs:
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
 
   integration-test:
-    if: github.ref == 'refs/heads/develop'
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop'
     needs: [ deploy-testing ]
     runs-on: ubuntu-latest
     steps:
