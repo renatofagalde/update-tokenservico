@@ -61,7 +61,7 @@ jobs:
           role-duration-seconds: 3600
           role-skip-session-tagging: true
 
-      - name: Delete feature branch stack 🤬
+      - name: 🤡 *Delete feature branch stack* 🤬🤬
         env:
           FEATURE_BRANCH_NAME: ${{ github.event.ref }}
         run: |
