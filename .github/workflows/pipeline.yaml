@@ -41,7 +41,7 @@ jobs:
       - name: Print Event Information
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BASE_REF: ${{ github.ref }}
         run: |
           echo "GitHub Event Name: $EVENT_NAME"
           echo "Pull Request Base Ref: $PR_BASE_REF"
@@ -122,6 +122,16 @@ jobs:
             --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
+
+  delete-branch-after-merge:
+    needs: [ build-and-deploy-feature ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        if: github.event.pull_request.merged == true
+        run: |
+          git fetch --prune --tags
+          git push origin --delete ${{ github.head_ref }}
 
   deploy-testing:
     if: github.ref == 'refs/heads/develop'
