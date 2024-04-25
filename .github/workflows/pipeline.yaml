@@ -125,25 +125,62 @@ jobs:
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
 
-  delete-branch-after-merge:
-    needs: [ build-and-deploy-feature ]
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
-    steps:
-      - name: Validating
-        uses: actions/checkout@v3
-      - name: Delete merged branch
-        run: |
-          if [ "${{ github.head_ref }}" != "main" ] && [ "${{ github.head_ref }}" != "develop" ]; then
-            git fetch --prune --tags
-            git push origin --delete ${{ github.head_ref }}
-          else
-            echo "Skipping deletion of main or develop branch."
-          fi
-  
-  deploy-testing:
+#  delete-branch-after-merge:
+#    needs: [ build-and-deploy-feature ]
+#    runs-on: ubuntu-latest
+#    if: github.event.pull_request.merged == true
+#    steps:
+#      - name: Validating
+#        uses: actions/checkout@v3
+#      - name: Delete merged branch
+#        run: |
+#          if [ "${{ github.head_ref }}" != "main" ] && [ "${{ github.head_ref }}" != "develop" ]; then
+#            git fetch --prune --tags
+#            git push origin --delete ${{ github.head_ref }}
+#          else
+#            echo "Skipping deletion of main or develop branch."
+#          fi
+
+  build-and-package-develop:
     if: github.ref == 'refs/heads/develop'
-    needs: [ build-and-package ]
+    needs: [ test ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Build resources
+        run: sam build --template ${SAM_TEMPLATE} --use-container
+
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.TESTING_REGION }}
+          role-to-assume: ${{ env.TESTING_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: testing-packaging
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Upload artifacts to testing artifact buckets
+        run: |
+          sam package \
+            --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
+            --region ${TESTING_REGION} \
+            --output-template-file packaged-testing.yaml
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: packaged-testing.yaml
+          path: packaged-testing.yaml
+  
+
+  deploy-develop:
+    if: github.ref == 'refs/heads/develop'
+    needs: [ build-and-package-develop ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -177,44 +214,13 @@ jobs:
 
   integration-test:
     if: github.ref == 'refs/heads/develop'
-    needs: [ deploy-testing ]
+    needs: [ deploy-develop ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - run: |
           # trigger the integration tests here
 
-
-  build-and-package:
-    if: github.ref == 'refs/heads/develop'
-    needs: [ test ]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: aws-actions/setup-sam@v2
-        with:
-          use-installer: true
-
-      - name: Build resources
-        run: sam build --template ${SAM_TEMPLATE} --use-container
-
-      - name: Assume the testing pipeline user role
-        uses: aws-actions/configure-aws-credentials@v1-node16
-        with:
-          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.TESTING_REGION }}
-          role-to-assume: ${{ env.TESTING_PIPELINE_EXECUTION_ROLE }}
-          role-session-name: testing-packaging
-          role-duration-seconds: 3600
-          role-skip-session-tagging: true
-
-      - name: Upload artifacts to testing artifact buckets
-        run: |
-          sam package \
-            --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
-            --region ${TESTING_REGION} \
-            --output-template-file packaged-testing.yaml
 
   build-and-package-prd:
     if: github.ref == 'refs/heads/main'
