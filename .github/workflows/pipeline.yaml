@@ -42,9 +42,11 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_REF: ${{ github.ref }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           echo "GitHub Event Name: $EVENT_NAME"
           echo "Pull Request Base Ref: $PR_BASE_REF"
+          echo "Head Ref: $HEAD_REF"
   test:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -126,13 +128,18 @@ jobs:
   delete-branch-after-merge:
     needs: [ build-and-deploy-feature ]
     runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
     steps:
-      - uses: actions/checkout@v3
-        if: github.event.pull_request.merged == true
+      - name: Validating
+        uses: actions/checkout@v3
+      - name: Delete merged branch
         run: |
-          git fetch --prune --tags
-          git push origin --delete ${{ github.head_ref }}
-
+          if [ "${{ github.head_ref }}" != "main" ] && [ "${{ github.head_ref }}" != "develop" ]; then
+            git fetch --prune --tags
+            git push origin --delete ${{ github.head_ref }}
+          else
+            echo "Skipping deletion of main or develop branch."
+          fi
   deploy-testing:
     if: github.ref == 'refs/heads/develop'
     needs: [ build-and-package ]
