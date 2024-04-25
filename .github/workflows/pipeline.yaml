@@ -124,7 +124,7 @@ jobs:
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
 
   deploy-testing:
-    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop'
+    if: ${{ github.ref == 'refs/heads/develop' && github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
     needs: [ build-and-package ]
     runs-on: ubuntu-latest
     steps:
@@ -158,7 +158,7 @@ jobs:
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
 
   integration-test:
-    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop'
+    if: ${{ github.ref == 'refs/heads/develop' && github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
     needs: [ deploy-testing ]
     runs-on: ubuntu-latest
     steps:
