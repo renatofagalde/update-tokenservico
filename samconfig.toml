@@ -4,6 +4,5 @@ stack_name = "golang-updatetokenservico"
 resolve_s3 = true
 s3_prefix = "golang-updatetokenservico"
 region = "us-east-1"
-profile = "dev-api"
 capabilities = "CAPABILITY_IAM"
 image_repositories = []
