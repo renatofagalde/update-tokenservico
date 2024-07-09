@@ -46,5 +46,5 @@ Outputs:
     Description: First Lambda Function ARN
     Value: !GetAtt UpdateTokenServicoFunction.Arn
   UpdateTokenServicoFunctionIamRole:
-    Description: Implicit IAM Role created for Hello World function
+    Description: Implicit IAM Role created for function
     Value: !GetAtt UpdateTokenServicoFunctionRole.Arn
