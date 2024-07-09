@@ -88,7 +88,7 @@ jobs:
       - name: Build Go binary
         run: |
           cd updatetoken
-          GOOS=linux GOARCH=amd64 go build -o main main.go
+          GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
           cd ..
       - uses: aws-actions/setup-sam@v2
         with:
