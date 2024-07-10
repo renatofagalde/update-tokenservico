@@ -21,9 +21,9 @@ Resources:
     Properties:
       CodeUri: .
       Handler: bootstrap
-      Runtime: provided.al2023
+       Runtime: provided.al2
       Architectures:
-        - arm64
+        - x86_64        
 
   ApplicationResourceGroup:
     Type: AWS::ResourceGroups::Group
