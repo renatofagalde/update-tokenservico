@@ -17,9 +17,9 @@ Resources:
   UpdateTokenServicoFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: makefile
+      BuildMethod: go1.x
     Properties:
-      CodeUri: ./
+      CodeUri: .
       Handler: bootstrap
       Runtime: provided.al2023
       Architectures:
