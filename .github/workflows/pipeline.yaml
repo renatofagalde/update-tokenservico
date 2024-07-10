@@ -86,6 +86,9 @@ jobs:
       - name: Build Go binary using Makefile
         run: |
           make build-UpdateTokenServicoFunction
+      - name: Zip the binary
+        run: |
+          zip function.zip bootstrap
       - uses: aws-actions/setup-sam@v2
       - run: sam build --template ${SAM_TEMPLATE} --use-container
 
@@ -123,6 +126,9 @@ jobs:
       - name: Build Go binary using Makefile
         run: |
           make build-UpdateTokenServicoFunction
+      - name: Zip the binary
+        run: |
+          zip function.zip bootstrap
       - uses: aws-actions/setup-sam@v2
 
       - name: Build resources
@@ -183,4 +189,29 @@ jobs:
             --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
             --no-fail-on-empty-changeset \
             --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
+
+  integration-test:
+    if: github.ref == 'refs/heads/develop'
+    needs: [ deploy-develop ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          # trigger the integration tests here
+
+  build-and-package-prd:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Go binary using Makefile
+        run: |
+          make build-UpdateTokenServicoFunction
+      - name: Zip the binary
+        run: |
+          zip function.zip bootstrap
+      - uses: aws-actions/setup-sam@v2
+
+      - name: Build resources
+        run: sam build --template ${SAM_TEMPLATE} --use-container
 
