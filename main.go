@@ -19,7 +19,7 @@ var (
 )
 
 func handleRequest(ctx context.Context) (string, error) {
-	fmt.Println("direto no root 03")
+	fmt.Println("direto no root 02 - A")
 	// Conectar ao banco de dados
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s", dbUser, dbPassword, dbHost, dbName)
 	db, err := sql.Open("mysql", dsn)
