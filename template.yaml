@@ -1,50 +1,200 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-Description: >
-  golang-app
+name: Pipeline
 
-Globals:
-  Function:
-    Timeout: 5
-    MemorySize: 128
-    Tracing: Active
-    LoggingConfig:
-      LogFormat: JSON
-  Api:
-    TracingEnabled: true
+on:
+  push:
+    branches:
+      - 'main'
+      - 'develop'
+      - 'feature**'
+  delete:
+    branches:
+      - 'feature**'
 
-Resources:
-  UpdateTokenServicoFunction:
-    Type: AWS::Serverless::Function
-    Metadata:
-      BuildMethod: go1.x
-    Properties:
-      CodeUri: .
-      Handler: bootstrap
-      Runtime: provided.al2
-      Architectures:
-        - x86_64        
+env:
+  PIPELINE_USER_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  PIPELINE_USER_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  SAM_TEMPLATE: template.yaml
+  TESTING_STACK_NAME: golang-app-dev-stack
+  TESTING_PIPELINE_EXECUTION_ROLE: arn:aws:iam::012821307542:role/aws-sam-cli-managed-develop-p-PipelineExecutionRole-7xro0GasKJE1
+  TESTING_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::012821307542:role/aws-sam-cli-managed-devel-CloudFormationExecutionRo-VHLTYt17whFe
+  TESTING_ARTIFACTS_BUCKET: aws-sam-cli-managed-develop-pipeli-artifactsbucket-e54ejcyohj9e
+  # If there are functions with "Image" PackageType in your template,
+  # uncomment the line below and add "--image-repository ${TESTING_IMAGE_REPOSITORY}" to
+  # testing "sam package" and "sam deploy" commands.
+  # TESTING_IMAGE_REPOSITORY = '0123456789.dkr.ecr.region.amazonaws.com/repository-name'
+  TESTING_REGION: us-east-1
+  PROD_STACK_NAME: golang-app-prd-stack
+  PROD_PIPELINE_EXECUTION_ROLE: arn:aws:iam::012821307542:role/aws-sam-cli-managed-productio-PipelineExecutionRole-HnReJdD1WrG6
+  PROD_CLOUDFORMATION_EXECUTION_ROLE: arn:aws:iam::012821307542:role/aws-sam-cli-managed-produ-CloudFormationExecutionRo-O6tSWux3VVbJ
+  PROD_ARTIFACTS_BUCKET: aws-sam-cli-managed-production-pip-artifactsbucket-7dh0txwkgxvo
+  # If there are functions with "Image" PackageType in your template,
+  # uncomment the line below and add "--image-repository ${PROD_IMAGE_REPOSITORY}" to
+  # prod "sam package" and "sam deploy" commands.
+  # PROD_IMAGE_REPOSITORY = '0123456789.dkr.ecr.region.amazonaws.com/repository-name'
+  PROD_REGION: us-east-1
 
-  ApplicationResourceGroup:
-    Type: AWS::ResourceGroups::Group
-    Properties:
-      Name:
-        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
-      ResourceQuery:
-        Type: CLOUDFORMATION_STACK_1_0
+jobs:
+  log-events:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Print Event Information
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_REF: ${{ github.ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          echo "GitHub Event Name: $EVENT_NAME"
+          echo "Pull Request Base Ref: $PR_BASE_REF"
+          echo "Head Ref: $HEAD_REF"
+  test:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          # trigger the tests here
 
-  ApplicationInsightsMonitoring:
-    Type: AWS::ApplicationInsights::Application
-    Properties:
-      ResourceGroupName:
-        Ref: ApplicationResourceGroup
-      AutoConfigurationEnabled: 'true'
+  delete-feature:
+    if: startsWith(github.event.ref, 'feature') && github.event_name == 'delete'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
 
-Outputs:
-  UpdateTokenServicoFunction:
-    Description: First Lambda Function ARN
-    Value: !GetAtt UpdateTokenServicoFunction.Arn
-  UpdateTokenServicoFunctionIamRole:
-    Description: Implicit IAM Role created for function
-    Value: !GetAtt UpdateTokenServicoFunctionRole.Arn
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.TESTING_REGION }}
+          role-to-assume: ${{ env.TESTING_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: testing-packaging
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: 🤡 *Delete feature branch stack* 🤬🤬
+        env:
+          FEATURE_BRANCH_NAME: ${{ github.event.ref }}
+        run: |
+          stack_name=$(echo ${FEATURE_BRANCH_NAME##*/} | tr -cd '[a-zA-Z0-9-]')
+          echo "Nome da stack: $stack_name"
+          sam delete \
+            --stack-name $stack_name \
+            --region ${TESTING_REGION} \
+            --no-prompts
+
+
+  build-and-deploy-feature:
+    # this stage is triggered only for feature branches (feature*),
+    # which will build the stack and deploy to a stack named with branch name.
+    # https://github.com/actions/setup-python
+    # https://github.com/aws-actions/configure-aws-credentials#notice-node12-deprecation-warning
+    if: startsWith(github.ref, 'refs/heads/feature')
+    needs: [ test ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - name: Build Go project
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
+          mkdir -p /tmp/samcli/source/
+          mv bootstrap /tmp/samcli/source/
+
+      - run: sam build --template ${SAM_TEMPLATE} --use-container
+
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.TESTING_REGION }}
+          role-to-assume: ${{ env.TESTING_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: feature-deployment
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Deploy to feature stack in the testing account
+        shell: bash
+        run: |
+          echo ${GITHUB_REF##*/} | tr -cd '[a-zA-Z0-9-]'
+          echo ${FEATURE_BRANCH_NAME##*/} | tr -cd '[a-zA-Z0-9-]'          
+          sam deploy --stack-name $(echo ${GITHUB_REF##*/} | tr -cd '[a-zA-Z0-9-]') \
+            --capabilities CAPABILITY_IAM \
+            --region ${TESTING_REGION} \
+            --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
+            --no-fail-on-empty-changeset \
+            --role-arn ${TESTING_CLOUDFORMATION_EXECUTION_ROLE}
+
+#  delete-branch-after-merge:
+#    needs: [ build-and-deploy-feature ]
+#    runs-on: ubuntu-latest
+#    if: github.event.pull_request.merged == true
+#    steps:
+#      - name: Validating
+#        uses: actions/checkout@v3
+#      - name: Delete merged branch
+#        run: |
+#          if [ "${{ github.head_ref }}" != "main" ] && [ "${{ github.head_ref }}" != "develop" ]; then
+#            git fetch --prune --tags
+#            git push origin --delete ${{ github.head_ref }}
+#          else
+#            echo "Skipping deletion of main or develop branch."
+#          fi
+
+  build-and-package-develop:
+    if: github.ref == 'refs/heads/develop'
+    needs: [ test ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Build Go project
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
+          mkdir -p /tmp/samcli/source/
+          mv bootstrap /tmp/samcli/source/
+
+      - name: Build resources
+        run: sam build --template ${SAM_TEMPLATE} --use-container
+
+      - name: Assume the testing pipeline user role
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ env.PIPELINE_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.PIPELINE_USER_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.TESTING_REGION }}
+          role-to-assume: ${{ env.TESTING_PIPELINE_EXECUTION_ROLE }}
+          role-session-name: testing-packaging
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Upload artifacts to testing artifact buckets
+        run: |
+          sam package \
+            --s3-bucket ${TESTING_ARTIFACTS_BUCKET} \
+            --region ${TESTING_REGION} \
+            --output-template-file packaged-testing.yaml
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: packaged-testing.yaml
+          path: packaged-testing.yaml
+  
+
+  deploy-develop:
+    if: github.ref == 'refs/heads/develop'
+    needs: [ build-and-package-develop ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aws-actions/setup
 
